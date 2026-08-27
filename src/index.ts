@@ -1,6 +1,9 @@
 import "source-map-support/register.js";
 import 'dotenv/config';
-import express, { Request, Response } from 'express';
+import express, { Express, Request, Response } from 'express';
+import { Buffer } from "node:buffer";
+import { toString } from 'node:ffi';
+import { skip } from "node:test";
 
 const port: number = Number(process.env.PORT)
 
@@ -38,7 +41,7 @@ const products: productType[] = [
 ];
 
 
-const app = express()
+const app: Express = express()
 
 
 
@@ -86,7 +89,7 @@ app.get('/products', (req: Request, res: Response) => {
     let sortedData: productType[] = [...filteredData];
 
     if (sortBy !== undefined && sortAllowed.includes(sortBy)) {
-        if (orderBy === "desc" || orderBy === "descending" ) {
+        if (orderBy === "desc" || orderBy === "descending") {
 
             if (sortBy === "name") {
                 sortedData = filteredData.toSorted((a, b) => b.name.localeCompare(a.name) || Number(b.id) - Number(a.id));
@@ -102,10 +105,12 @@ app.get('/products', (req: Request, res: Response) => {
         }
 
 
+    } else {
+        sortedData = filteredData.sort((a, b) => Number(a.id) - Number(b.id))
     }
 
     // Pagination
-    const page: number = Number(req.query.page) || 1
+    const page: number = Number(req.query.page)
     const limit: number = Number(req.query.limit) || 10
     const totalProducts: number = sortedData.length
     const totalPages: number = Math.ceil(totalProducts / limit)
@@ -115,9 +120,36 @@ app.get('/products', (req: Request, res: Response) => {
     const endIndex: number = page * limit
 
     const paginatedData: productType[] = sortedData.slice(startIndex, endIndex)
+    if (!Number.isNaN(page)) {
+        res.status(200).json({ productsList: paginatedData, page, limit, total: totalProducts, totalPages })
 
-    res.status(200).json({ productsList: paginatedData, page, limit, total: totalProducts, totalPages })
+    }
+    // Cursor based pagination
+    const encoded: string  = req.query.cursor? String(req.query.cursor) : "undefined"
+    let idx: number = 0;
+    if ( encoded === "undefined") {
+        skip
+    } else {
+        const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
+        console.log(typeof decodedCursor, decodedCursor);
+        
+        idx = sortedData.findIndex(product => product.id === decodedCursor.id)
+    }
+
+    const cursorPaginatedData: productType[] = sortedData.slice(idx, idx + limit)
+    let lastElement = cursorPaginatedData.slice(-1)[0]
+
+    const lastElementString:string = JSON.stringify(lastElement)
+    console.log(lastElementString);
+    
+    const cursor = Buffer.from(`${lastElementString}`, 'utf-8').toString('base64')
+
+    res.status(200).json({ productsList: cursorPaginatedData, cursor, limit, total: totalProducts, totalPages })
+
+
+
 })
+
 
 
 app.listen(port, () => {
