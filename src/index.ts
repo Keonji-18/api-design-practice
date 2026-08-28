@@ -8,7 +8,7 @@ import { skip } from "node:test";
 const port: number = Number(process.env.PORT)
 
 type productType = {
-    id: Number,
+    id: number,
     name: string,
     category: string,
     price: number,
@@ -92,21 +92,21 @@ app.get('/products', (req: Request, res: Response) => {
         if (orderBy === "desc" || orderBy === "descending") {
 
             if (sortBy === "name") {
-                sortedData = filteredData.toSorted((a, b) => b.name.localeCompare(a.name) || Number(b.id) - Number(a.id));
+                sortedData = filteredData.toSorted((a, b) => b.name.localeCompare(a.name) || b.id - a.id);
             } else {
-                sortedData = filteredData.toSorted((a, b) => b.price - a.price || Number(b.id) - Number(a.id));
+                sortedData = filteredData.toSorted((a, b) => b.price - a.price || b.id - a.id);
             }
         } else {
             if (sortBy === "name") {
-                sortedData = filteredData.toSorted((a, b) => a.name.localeCompare(b.name) || Number(b.id) - Number(a.id));
+                sortedData = filteredData.toSorted((a, b) => a.name.localeCompare(b.name) || b.id - a.id);
             } else {
-                sortedData = filteredData.toSorted((a, b) => a.price - b.price || Number(b.id) - Number(a.id));
+                sortedData = filteredData.toSorted((a, b) => a.price - b.price || b.id - a.id);
             }
         }
 
 
     } else {
-        sortedData = filteredData.sort((a, b) => Number(a.id) - Number(b.id))
+        sortedData = filteredData.sort((a, b) => b.id - a.id)
     }
 
     // Pagination
@@ -125,31 +125,83 @@ app.get('/products', (req: Request, res: Response) => {
 
     }
     // Cursor based pagination
-    const encoded: string  = req.query.cursor? String(req.query.cursor) : "undefined"
+    const encoded: string = req.query.cursor ? String(req.query.cursor) : "undefined"
     let idx: number = 0;
-    if ( encoded === "undefined") {
+    if (encoded === "undefined") {
         skip
     } else {
         const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
         console.log(typeof decodedCursor, decodedCursor);
-        
-        idx = sortedData.findIndex(product => product.id === decodedCursor.id)
+
+        idx = sortedData.findIndex(product => product.id === decodedCursor.id) + 1
     }
 
     const cursorPaginatedData: productType[] = sortedData.slice(idx, idx + limit)
     let lastElement = cursorPaginatedData.slice(-1)[0]
 
-    const lastElementString:string = JSON.stringify(lastElement)
+    const lastElementString: string = JSON.stringify(lastElement)
     console.log(lastElementString);
-    
+
     const cursor = Buffer.from(`${lastElementString}`, 'utf-8').toString('base64')
+
 
     res.status(200).json({ productsList: cursorPaginatedData, cursor, limit, total: totalProducts, totalPages })
 
-
-
 })
 
+app.get('/products/search', (req: Request, res: Response) => {
+    const search = req.query.q as string
+
+    type matchCountType = {
+        id: number,
+        matchCount: number
+    }
+    const numberMatches: matchCountType[] = []
+    products.forEach((product) => {
+        const matches: string[] = [...product.name].filter((char) => search.includes(char))
+        numberMatches.push({ id: product.id, matchCount: matches.length })
+    })
+
+    numberMatches.sort((a, b) => b.matchCount - a.matchCount)
+
+    console.log(numberMatches);
+
+    const searchResult: productType[] = []
+
+    numberMatches.forEach((match) => {
+
+        const idx = products.findIndex(product => product.id === match.id)
+        searchResult.push(products[idx])
+    })
+
+    const limit: number = Number(req.query.limit) || 10
+
+    const encoded: string = req.query.cursor ? String(req.query.cursor) : "undefined"
+    let idx: number = 0;
+    if (encoded === "undefined") {
+        skip
+
+    } else {
+
+        const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
+        console.log(typeof decodedCursor, decodedCursor);
+
+        idx = searchResult.findIndex(product => product.id === decodedCursor.id) + 1
+    }
+
+    const cursorPaginatedData: productType[] = searchResult.slice(idx, idx + limit)
+    let lastElement = cursorPaginatedData.slice(-1)[0]
+
+    const lastElementString: string = JSON.stringify(lastElement)
+    console.log(lastElementString);
+
+    const cursor = Buffer.from(`${lastElementString}`, 'utf-8').toString('base64')
+
+
+
+    res.status(200).json({ productsList: cursorPaginatedData, cursor, limit, total: products.length, pages: Math.ceil(products.length / limit) })
+
+})
 
 
 app.listen(port, () => {
