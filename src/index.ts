@@ -1,11 +1,12 @@
 import "source-map-support/register.js";
 import 'dotenv/config';
-import express, { Express, Request, Response } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import { Buffer } from "node:buffer";
 import { toString } from 'node:ffi';
 import { skip } from "node:test";
-
+import logger from "./middleware/logger.js";
 const port: number = Number(process.env.PORT)
+
 
 type productType = {
     id: number,
@@ -44,6 +45,7 @@ const products: productType[] = [
 const app: Express = express()
 
 
+app.use(logger)
 
 app.get('/', (req, res) => {
     res.send("You are in home page")
@@ -57,7 +59,7 @@ app.get('/products', (req: Request, res: Response) => {
 
     let inStock: boolean | undefined = req.query.inStock ? (req.query.inStock === "true" ? true : false) : undefined
 
-
+setTimeout(()=>{},5000)
     let filteredData: productType[] = [];
 
     if (category && allowedFilters.includes("category")) {
@@ -131,7 +133,6 @@ app.get('/products', (req: Request, res: Response) => {
         skip
     } else {
         const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
-        console.log(typeof decodedCursor, decodedCursor);
 
         idx = sortedData.findIndex(product => product.id === decodedCursor.id) + 1
     }
@@ -140,7 +141,7 @@ app.get('/products', (req: Request, res: Response) => {
     let lastElement = cursorPaginatedData.slice(-1)[0]
 
     const lastElementString: string = JSON.stringify(lastElement)
-    console.log(lastElementString);
+
 
     const cursor = Buffer.from(`${lastElementString}`, 'utf-8').toString('base64')
 
@@ -164,7 +165,6 @@ app.get('/products/search', (req: Request, res: Response) => {
 
     numberMatches.sort((a, b) => b.matchCount - a.matchCount)
 
-    console.log(numberMatches);
 
     const searchResult: productType[] = []
 
@@ -184,7 +184,7 @@ app.get('/products/search', (req: Request, res: Response) => {
     } else {
 
         const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
-        console.log(typeof decodedCursor, decodedCursor);
+        
 
         idx = searchResult.findIndex(product => product.id === decodedCursor.id) + 1
     }
@@ -193,7 +193,7 @@ app.get('/products/search', (req: Request, res: Response) => {
     let lastElement = cursorPaginatedData.slice(-1)[0]
 
     const lastElementString: string = JSON.stringify(lastElement)
-    console.log(lastElementString);
+
 
     const cursor = Buffer.from(`${lastElementString}`, 'utf-8').toString('base64')
 
