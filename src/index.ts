@@ -7,6 +7,7 @@ import { skip } from "node:test";
 import logger from "./middleware/logger.js";
 import rateLimiter from "./middleware/rateLimiter.js";
 import validateSchema from "./middleware/validateSchema.js";
+import errorHandler from "./middleware/errorHandler.js";
 const port: number = Number(process.env.PORT)
 
 
@@ -196,10 +197,7 @@ app.get('/products/search', (req: Request, res: Response) => {
 
     const lastElementString: string = JSON.stringify(lastElement)
 
-
     const cursor = Buffer.from(`${lastElementString}`, 'utf-8').toString('base64')
-
-
 
     res.status(200).json({ productsList: cursorPaginatedData, cursor, limit, total: products.length, pages: Math.ceil(products.length / limit) })
 
@@ -212,6 +210,8 @@ app.post('/products', validateSchema, (req:Request, res:Response) => {
     res.status(201).json({message: "Created Success", data:products[-1]})
     
 })
+
+app.use(errorHandler)
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);
