@@ -1,4 +1,4 @@
-import express, { Request, Response, NextFunction } from 'express'
+import { Request, Response, NextFunction } from 'express'
 
 export default function rateLimiter(bucketSize: number = 50, rate: number = 10000) {
 
@@ -14,7 +14,6 @@ export default function rateLimiter(bucketSize: number = 50, rate: number = 1000
         if (capactity > bucketSize) {
             capactity = bucketSize
         }
-
         if (capactity !== 0) {
             capactity--
 

@@ -6,6 +6,7 @@ import { toString } from 'node:ffi';
 import { skip } from "node:test";
 import logger from "./middleware/logger.js";
 import rateLimiter from "./middleware/rateLimiter.js";
+import validateSchema from "./middleware/validateSchema.js";
 const port: number = Number(process.env.PORT)
 
 
@@ -17,7 +18,7 @@ type productType = {
     inStock: boolean
 }
 
-const products: productType[] = [
+export const products: productType[] = [
     { id: 1, name: "Pen", category: "Stationery", price: 20, inStock: true },
     { id: 2, name: "Notebook", category: "Stationery", price: 80, inStock: true },
     { id: 3, name: "Backpack", category: "Bags", price: 1200, inStock: true },
@@ -46,8 +47,9 @@ const products: productType[] = [
 const app: Express = express()
 
 app.use(rateLimiter(10, 10000))
-
 app.use(logger)
+
+app.use(express.json())
 
 app.get('/', (req, res) => {
     res.send("You are in home page")
@@ -110,7 +112,7 @@ app.get('/products', (req: Request, res: Response) => {
 
 
     } else {
-        sortedData = filteredData.sort((a, b) => b.id - a.id)
+        sortedData = filteredData.sort((a, b) => a.id - b.id || a.price - b.price)
     }
 
     // Pagination
@@ -119,14 +121,12 @@ app.get('/products', (req: Request, res: Response) => {
     const totalProducts: number = sortedData.length
     const totalPages: number = Math.ceil(totalProducts / limit)
 
-
     const startIndex: number = (page - 1) * limit
     const endIndex: number = page * limit
 
     const paginatedData: productType[] = sortedData.slice(startIndex, endIndex)
     if (!Number.isNaN(page)) {
-        res.status(200).json({ productsList: paginatedData, page, limit, total: totalProducts, totalPages })
-
+        return res.status(200).json({ productsList: paginatedData, page, limit, total: totalProducts, totalPages })
     }
     // Cursor based pagination
     const encoded: string = req.query.cursor ? String(req.query.cursor) : "undefined"
@@ -205,6 +205,13 @@ app.get('/products/search', (req: Request, res: Response) => {
 
 })
 
+app.post('/products', validateSchema, (req:Request, res:Response) => {
+     
+    const productId:number = req.body.id
+    products.push(req.body)
+    res.status(201).json({message: "Created Success", data:products[-1]})
+    
+})
 
 app.listen(port, () => {
     console.log(`Server running at http://localhost:${port}`);

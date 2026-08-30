@@ -1,4 +1,4 @@
-import express, {Request, Response, NextFunction } from 'express'
+import {Request, Response, NextFunction } from 'express'
 
 export default function logger(req:Request,res:Response, next:NextFunction){
     const method = req.method
@@ -11,7 +11,7 @@ export default function logger(req:Request,res:Response, next:NextFunction){
         const end = process.hrtime.bigint();
         const durationInMs = Number(end - start) / 1e6; 
         const status = res.statusCode
-        console.log(`Request Method: ${method}, Request Path(ms): ${path}, Response Time: ${durationInMs}, Response Status: ${status}`);
+        console.log(`Request Method: ${method}, Request Path: ${path}, Response Time(ms): ${durationInMs}, Response Status: ${status}`);
 
      })
 
