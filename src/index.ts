@@ -5,6 +5,7 @@ import { Buffer } from "node:buffer";
 import { toString } from 'node:ffi';
 import { skip } from "node:test";
 import logger from "./middleware/logger.js";
+import rateLimiter from "./middleware/rateLimiter.js";
 const port: number = Number(process.env.PORT)
 
 
@@ -44,6 +45,7 @@ const products: productType[] = [
 
 const app: Express = express()
 
+app.use(rateLimiter(10, 10000))
 
 app.use(logger)
 
@@ -59,7 +61,7 @@ app.get('/products', (req: Request, res: Response) => {
 
     let inStock: boolean | undefined = req.query.inStock ? (req.query.inStock === "true" ? true : false) : undefined
 
-setTimeout(()=>{},5000)
+    setTimeout(() => { }, 5000)
     let filteredData: productType[] = [];
 
     if (category && allowedFilters.includes("category")) {
@@ -184,7 +186,7 @@ app.get('/products/search', (req: Request, res: Response) => {
     } else {
 
         const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
-        
+
 
         idx = searchResult.findIndex(product => product.id === decodedCursor.id) + 1
     }
