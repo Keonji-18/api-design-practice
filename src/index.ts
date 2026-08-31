@@ -175,7 +175,7 @@ app.post('/logout', (req: Request, res: Response, next: NextFunction) => {
 
 
 
-app.get('/products', (req: Request, res: Response) => {
+app.get('/products',validateToken, (req: Request, res: Response) => {
 
     // Filtering 
     const allowedFilters: string[] = ["category", "inStock"]
@@ -272,7 +272,7 @@ app.get('/products', (req: Request, res: Response) => {
 
 })
 
-app.get('/products/search', (req: Request, res: Response) => {
+app.get('/products/search',validateToken, (req: Request, res: Response) => {
     const search = req.query.q as string
 
     type matchCountType = {
