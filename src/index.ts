@@ -10,6 +10,7 @@ import errorHandler from "./middleware/errorHandler.js";
 import bcrypt from 'bcrypt';
 import jwt, { JwtPayload } from 'jsonwebtoken'
 import validateToken from "./middleware/validateToken.js";
+import {OrderRouter} from "./rotues/orderRoutes.js"
 
 
 
@@ -71,9 +72,14 @@ app.use(logger)
 app.use(cookieParser())
 app.use(express.json())
 
+
+app.use('/products', OrderRouter)
+
 app.get('/', (req, res) => {
     res.send("You are in home page")
 })
+
+
 
 app.post('/signup', async (req: Request, res: Response) => {
 
