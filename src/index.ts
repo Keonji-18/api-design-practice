@@ -2,12 +2,17 @@ import "source-map-support/register.js";
 import 'dotenv/config';
 import express, { Express, Request, Response, NextFunction } from 'express';
 import { Buffer } from "node:buffer";
-import { toString } from 'node:ffi';
-import { skip } from "node:test";
+import cookieParser from "cookie-parser";
 import logger from "./middleware/logger.js";
 import rateLimiter from "./middleware/rateLimiter.js";
 import validateSchema from "./middleware/validateSchema.js";
 import errorHandler from "./middleware/errorHandler.js";
+import bcrypt from 'bcrypt';
+import jwt, { JwtPayload } from 'jsonwebtoken'
+import validateToken from "./middleware/validateToken.js";
+
+
+
 const port: number = Number(process.env.PORT)
 
 
@@ -17,6 +22,17 @@ type productType = {
     category: string,
     price: number,
     inStock: boolean
+}
+
+type userType = {
+
+    name: string,
+    emailId: string,
+    hashPassword: string
+}
+
+interface userPayload extends JwtPayload {
+    emailId: string
 }
 
 export const products: productType[] = [
@@ -44,17 +60,114 @@ export const products: productType[] = [
     { id: 22, name: "Sunglasses", category: "Accessories", price: 1200, inStock: true }
 ];
 
+const users: userType[] = []
+
+const revokedRefreshToken: string[] = []
 
 const app: Express = express()
 
 app.use(rateLimiter(10, 10000))
 app.use(logger)
-
+app.use(cookieParser())
 app.use(express.json())
 
 app.get('/', (req, res) => {
     res.send("You are in home page")
 })
+
+app.post('/signup', async (req: Request, res: Response) => {
+
+    const { name, emailId, password } = req.body
+    const saltRounds = 10
+
+    const hashPassword: string = await bcrypt.hash(password, saltRounds)
+    users.push({ name, emailId, hashPassword })
+
+    console.log(users);
+
+    res.status(201).json({ message: "User created" })
+
+})
+
+app.post('/login', async (req: Request, res: Response) => {
+    const { emailId, password } = req.body
+
+    const idx: number = users.findIndex(user => user.emailId === emailId)
+
+    const isUserPresent = await bcrypt.compare(password, users[idx].hashPassword)
+
+    if (!idx && !isUserPresent) {
+        return res.status(400).json({ message: "wrong email or password" })
+    }
+
+    const userPayload = {
+        emailId: users[idx].emailId
+    }
+
+    const access_token = jwt.sign(userPayload, process.env.ACCESS_TOKEN_SECRET as string)
+    const refresh_token = jwt.sign(userPayload, process.env.REFRESH_TOKEN_SECRET as string)
+
+
+    res.cookie('access_token', access_token, { expires: new Date(Date.now() + 60000), httpOnly: true })
+    res.cookie('refresh_token', refresh_token, { expires: new Date(Date.now() + 24 * 60 * 60 * 1000), httpOnly: true })
+
+    res.status(201).json({ message: "User loggedIn" })
+
+})
+
+app.get('/me', validateToken, (req: Request, res: Response) => {
+
+    const user = users.find(user => user.emailId === req.userEmail)
+
+    console.log(user);
+
+    res.status(200).json(user)
+})
+
+app.post('/refresh', (req: Request, res: Response, next: NextFunction) => {
+    try {
+
+        const refreshToken = req.cookies.refresh_token
+
+        const isRevoked = revokedRefreshToken.includes(refreshToken)
+        if (isRevoked) {
+            return res.status(400).json({ message: "Your refresh token expired" })
+        }
+
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET as string) as userPayload
+
+        if (!decoded) {
+            return res.status(400).json({ message: "No refresh token found" })
+        }
+        const userPayload = {
+            emailId: decoded.emailId
+        }
+
+        const access_token = jwt.sign(userPayload, process.env.ACCESS_TOKEN_SECRET as string)
+        res.cookie('access_token', access_token, { expires: new Date(Date.now() + 60000), httpOnly: true })
+
+        console.log(req.cookies.access_token);
+
+        res.status(201).json({ message: "Access token generated" })
+
+    } catch (error) {
+        next(error)
+    }
+})
+
+app.post('/logout', (req: Request, res: Response, next: NextFunction) => {
+
+    const refresh_token = req.cookies.refresh_token
+
+    res.clearCookie('access_token')
+    res.clearCookie('refresh_token')
+    revokedRefreshToken.push(refresh_token)
+
+    res.status(201).json({ message: "Logged Out" })
+
+})
+
+
 
 app.get('/products', (req: Request, res: Response) => {
 
@@ -133,7 +246,7 @@ app.get('/products', (req: Request, res: Response) => {
     const encoded: string = req.query.cursor ? String(req.query.cursor) : "undefined"
     let idx: number = 0;
     if (encoded === "undefined") {
-        skip
+        //pass
     } else {
         const decodedCursor = JSON.parse(Buffer.from(encoded, 'base64').toString('utf-8'))
 
@@ -182,7 +295,7 @@ app.get('/products/search', (req: Request, res: Response) => {
     const encoded: string = req.query.cursor ? String(req.query.cursor) : "undefined"
     let idx: number = 0;
     if (encoded === "undefined") {
-        skip
+        // pass
 
     } else {
 
@@ -203,12 +316,12 @@ app.get('/products/search', (req: Request, res: Response) => {
 
 })
 
-app.post('/products', validateSchema, (req:Request, res:Response) => {
-     
-    const productId:number = req.body.id
+app.post('/products', validateSchema, (req: Request, res: Response) => {
+
+    const productId: number = req.body.id
     products.push(req.body)
-    res.status(201).json({message: "Created Success", data:products[-1]})
-    
+    res.status(201).json({ message: "Created Success", data: products[-1] })
+
 })
 
 app.use(errorHandler)
